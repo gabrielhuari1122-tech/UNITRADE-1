@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
-import xlwings as xw
 from io import BytesIO
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.lib import colors
 
 # =====================
 # Google Sheets URLs
@@ -22,13 +23,19 @@ def exportar_excel(df):
     buffer.seek(0)
     return buffer
 
-def exportar_pdf_desde_excel(buffer_excel, nombre_pdf):
-    with open("temp.xlsx", "wb") as f:
-        f.write(buffer_excel.read())
-    wb = xw.Book("temp.xlsx")
-    ws = wb.sheets[0]
-    ws.api.ExportAsFixedFormat(0, nombre_pdf)
-    wb.close()
+def exportar_pdf(df):
+    buffer = BytesIO()
+    pdf = SimpleDocTemplate(buffer)
+    data = [df.columns.tolist()] + df.values.tolist()
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.gray),
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ('ALIGN',(0,0),(-1,-1),'CENTER')
+    ]))
+    pdf.build([table])
+    buffer.seek(0)
+    return buffer
 
 # =====================
 # Cargar datos
@@ -54,6 +61,7 @@ if st.button("Iniciar sesión"):
                 st.success(f"Login correcto. Cliente válido: {cliente_input}")
                 df_filtrado = df_clientes[df_clientes['NOMBRE DEL CLIENTE'] == cliente_input]
 
+                # Botón para Excel
                 if st.button("Exportar Excel"):
                     buffer_excel = exportar_excel(df_filtrado)
                     st.download_button(
@@ -63,16 +71,15 @@ if st.button("Iniciar sesión"):
                         mime="application/vnd.ms-excel"
                     )
 
+                # Botón para PDF
                 if st.button("Exportar PDF"):
-                    buffer_excel = exportar_excel(df_filtrado)
-                    exportar_pdf_desde_excel(buffer_excel, f"{cliente_input}.pdf")
-                    with open(f"{cliente_input}.pdf", "rb") as pdf_file:
-                        st.download_button(
-                            label="Descargar PDF",
-                            data=pdf_file,
-                            file_name=f"{cliente_input}.pdf",
-                            mime="application/pdf"
-                        )
+                    buffer_pdf = exportar_pdf(df_filtrado)
+                    st.download_button(
+                        label="Descargar PDF",
+                        data=buffer_pdf,
+                        file_name=f"{cliente_input}.pdf",
+                        mime="application/pdf"
+                    )
             else:
                 st.error("Acceso denegado")
         else:
